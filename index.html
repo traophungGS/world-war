@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Countryballs World Domination Strategy</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: 'Fredoka', cursive, sans-serif;
+            background-color: #0f172a;
+            color: #ffffff;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        #game-container:active {
+            cursor: grabbing;
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        /* Comic Speech Bubble */
+        .speech-bubble {
+            position: absolute;
+            background: #ffffff;
+            color: #000000;
+            border: 3px solid #000000;
+            border-radius: 12px;
+            padding: 6px 12px;
+            font-weight: 700;
+            font-size: 14px;
+            pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transform: translate(-50%, -100%);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), fadeOut 0.5s ease 1.2s forwards;
+            z-index: 40;
+        }
+
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 10px 8px 0;
+            border-style: solid;
+            border-color: #ffffff transparent;
+            display: block;
+            width: 0;
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -80%) scale(0.5); opacity: 0; }
+            100% { transform: translate(-50%, -100%) scale(1); opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            to { opacity: 0; transform: translate(-50%, -120%) scale(0.8); }
+        }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        .action-btn {
+            transition: transform 0.1s ease, filter 0.2s ease;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px) scale(1.02);
+            filter: brightness(1.1);
+        }
+
+        .action-btn:active {
+            transform: translateY(1px) scale(0.98);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #f59e0b;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen relative select-none">
+
+    <!-- Game Canvas -->
+    <div id="game-container">
+        <canvas id="world-canvas"></canvas>
+    </div>
+
+    <!-- Speech Bubbles Container -->
+    <div id="speech-bubbles-container" class="absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
+
+    <!-- HUD Top Bar -->
+    <div class="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none z-20">
+        <!-- Turn & Phase Panel -->
+        <div class="glass-panel px-5 py-2.5 rounded-2xl flex items-center gap-4 pointer-events-auto border-2 border-amber-500/40">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-hourglass-half text-amber-400 text-xl animate-pulse"></i>
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Turn</div>
+                    <div id="turn-counter" class="text-2xl font-black text-white leading-none">1</div>
+                </div>
+            </div>
+            <div class="h-8 w-px bg-slate-700"></div>
+            <div id="phase-badge" class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+                Peace (Turns 1-2)
+            </div>
+        </div>
+
+        <!-- Gold & Territory Panel -->
+        <div class="glass-panel px-5 py-2.5 rounded-2xl flex items-center gap-6 pointer-events-auto border-2 border-amber-500/40">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-coins text-yellow-400 text-2xl drop-shadow-md"></i>
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Gold</div>
+                    <div id="gold-display" class="text-2xl font-black text-amber-400 leading-none">150</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-earth-americas text-blue-400 text-2xl"></i>
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Territories</div>
+                    <div id="territory-display" class="text-2xl font-black text-blue-400 leading-none">1 / 193</div>
+                </div>
+            </div>
+            <button id="end-turn-btn" class="action-btn bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black px-5 py-2.5 rounded-xl text-lg shadow-lg flex items-center gap-2 border-b-4 border-amber-700">
+                <span>END TURN</span>
+                <i class="fa-solid fa-circle-play"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Zoom & Recenter Controls -->
+    <div class="absolute bottom-6 left-6 flex flex-col gap-2 z-20 pointer-events-auto">
+        <button id="zoom-in" class="action-btn glass-panel text-white w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold hover:bg-slate-800">
+            <i class="fa-solid fa-plus"></i>
+        </button>
+        <button id="zoom-out" class="action-btn glass-panel text-white w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold hover:bg-slate-800">
+            <i class="fa-solid fa-minus"></i>
+        </button>
+        <button id="recenter-map" class="action-btn glass-panel text-white w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold hover:bg-slate-800" title="Recenter Home">
+            <i class="fa-solid fa-location-crosshairs"></i>
+        </button>
+    </div>
+
+    <!-- Upgrade Panel (Bottom Right) -->
+    <div id="upgrade-panel" class="absolute bottom-6 right-6 glass-panel p-5 rounded-3xl border-2 border-amber-500/40 z-20 hidden w-80 pointer-events-auto transition-all duration-300">
+        <div class="flex justify-between items-center mb-3">
+            <div class="flex items-center gap-3">
+                <span id="panel-flag" class="text-3xl"></span>
+                <div>
+                    <h3 id="panel-country-name" class="font-bold text-lg leading-tight text-white">Country</h3>
+                    <div id="panel-troops" class="text-xs text-amber-400 font-semibold">Troops: 10</div>
+                </div>
+            </div>
+            <button id="close-panel" class="text-slate-400 hover:text-white text-lg p-1">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <button id="upgrade-power-btn" class="action-btn bg-slate-900 hover:bg-slate-800 border border-slate-700 p-3 rounded-2xl flex flex-col items-center text-center">
+                <i class="fa-solid fa-shield-halved text-rose-400 text-xl mb-1"></i>
+                <div class="text-xs text-slate-300 font-bold">POWER (+5)</div>
+                <div id="power-cost" class="text-amber-400 font-black text-sm mt-1">100 🪙</div>
+            </button>
+            <button id="upgrade-income-btn" class="action-btn bg-slate-900 hover:bg-slate-800 border border-slate-700 p-3 rounded-2xl flex flex-col items-center text-center">
+                <i class="fa-solid fa-sack-dollar text-emerald-400 text-xl mb-1"></i>
+                <div class="text-xs text-slate-300 font-bold">INCOME (+10)</div>
+                <div id="income-cost" class="text-amber-400 font-black text-sm mt-1">150 🪙</div>
+            </button>
+        </div>
+        <p class="text-[11px] text-slate-400 text-center italic">Click an adjacent nation to attack!</p>
+    </div>
+
+    <!-- Starting Nation Selection Modal -->
+    <div id="selection-modal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="glass-panel max-w-2xl w-full max-h-[85vh] rounded-3xl p-6 flex flex-col border-2 border-amber-500/50 shadow-2xl">
+            <div class="text-center mb-5">
+                <h1 class="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 tracking-wide uppercase">
+                    Countryballs Strategy
+                </h1>
+                <p class="text-slate-300 text-sm mt-1">Select your starting nation from all 193 UN members. Non-overlapping physics enabled.</p>
+            </div>
+
+            <div class="relative mb-4">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="country-search" placeholder="Search 193 UN countries..." 
+                    class="w-full bg-slate-900 border-2 border-slate-700 rounded-2xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 text-sm">
+            </div>
+
+            <div id="country-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 overflow-y-auto pr-1 flex-1 min-h-[300px]"></div>
+
+            <div class="mt-4 pt-3 border-t border-slate-800 flex justify-between items-center text-xs text-slate-400">
+                <span>193 UN Nations Loaded</span>
+                <span class="text-amber-400 font-semibold"><i class="fa-solid fa-shield"></i> Peace for Turns 1-2</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mystery Chest / Diplomatic Deal Modal -->
+    <div id="event-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 border-2 border-amber-400 text-center">
+            <div id="event-icon" class="text-5xl mb-3 text-amber-400"><i class="fa-solid fa-handshake"></i></div>
+            <h2 id="event-title" class="text-2xl font-bold text-white mb-2">Diplomatic Deal!</h2>
+            <p id="event-desc" class="text-slate-300 text-sm mb-6">A neighboring country offers a deal.</p>
+            <div class="flex gap-3 justify-center">
+                <button id="event-accept" class="action-btn bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-5 py-2.5 rounded-xl flex-1 border-b-4 border-emerald-700">Accept</button>
+                <button id="event-decline" class="action-btn bg-rose-600 hover:bg-rose-500 text-white font-bold px-5 py-2.5 rounded-xl flex-1 border-b-4 border-rose-800">Decline</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Victory / Defeat Modal -->
+    <div id="endgame-modal" class="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-8 border-4 border-yellow-400 text-center shadow-2xl">
+            <div id="endgame-flag" class="text-6xl mb-2 animate-bounce">🏆</div>
+            <h2 id="endgame-title" class="text-4xl font-black text-amber-400 mb-2">VICTORY!</h2>
+            <p id="endgame-desc" class="text-slate-300 text-sm mb-6">You conquered the world!</p>
+
+            <div class="bg-slate-900 rounded-2xl p-4 mb-6 border border-slate-800 flex justify-around">
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">Turns</div>
+                    <div id="endgame-turns" class="text-2xl font-black text-amber-400">12</div>
+                </div>
+                <div class="w-px bg-slate-800"></div>
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold">Final Gold</div>
+                    <div id="endgame-gold" class="text-2xl font-black text-yellow-400">+350</div>
+                </div>
+            </div>
+
+            <button id="restart-btn" class="action-btn bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-lg w-full py-3 rounded-2xl shadow-lg border-b-4 border-amber-700">
+                PLAY AGAIN <i class="fa-solid fa-rotate-right ml-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- GAME LOGIC SCRIPT -->
+    <script>
+        // --- 1. ALL 193 UN RECOGNIZED NATIONS DATABASE ---
+        const ALL_NATIONS_RAW = [
+            ["USA","United States","🇺🇸"],["CAN","Canada","🇨🇦"],["MEX","Mexico","🇲🇽"],["BRA","Brazil","🇧🇷"],
+            ["ARG","Argentina","🇦🇷"],["GBR","United Kingdom","🇬🇧"],["FRA","France","🇫🇷"],["DEU","Germany","🇩🇪"],
+            ["ITA","Italy","🇮🇹"],["ESP","Spain","🇪🇸"],["RUS","Russia","🇷🇺"],["CHN","China","🇨🇳"],
+            ["IND","India","🇮🇳"],["JPN","Japan","🇯🇵"],["AUS","Australia","🇦🇺"],["EGY","Egypt","🇪🇬"],
+            ["ZAF","South Africa","🇿🇦"],["NGA","Nigeria","🇳🇬"],["TUR","Turkey","🇹🇷"],["SAU","Saudi Arabia","🇸🇦"],
+            ["UKR","Ukraine","🇺🇦"],["POL","Poland","🇵🇱"],["SWE","Sweden","🇸🇪"],["NOR","Norway","🇳🇴"],
+            ["DZA","Algeria","🇩🇿"],["IDN","Indonesia","🇮🇩"],["KOR","South Korea","🇰🇷"],["PRK","North Korea","🇰🇵"],
+            ["VNM","Vietnam","🇻🇳"],["THA","Thailand","🇹🇭"],["PAK","Pakistan","🇵🇰"],["IRN","Iran","🇮🇷"],
+            ["IRQ","Iraq","🇮🇶"],["COL","Colombia","🇨🇴"],["PER","Peru","🇵🇪"],["CHL","Chile","🇨🇱"],
+            ["VEN","Venezuela","🇻🇪"],["ETH","Ethiopia","🇪🇹"],["KEN","Kenya","🇰🇪"],["COD","DR Congo","🇨🇩"],
+            ["MAR","Morocco","🇲🇦"],["GRC","Greece","🇬🇷"],["FIN","Finland","🇫🇮"],["PRT","Portugal","🇵🇹"],
+            ["IRL","Ireland","🇮🇪"],["NLD","Netherlands","🇳🇱"],["BEL","Belgium","🇧🇪"],["CHE","Switzerland","🇨🇭"],
+            ["AUT","Austria","🇦🇹"],["ROU","Romania","🇷🇴"],["NZL","New Zealand","🇳🇿"],
+            ["AFG","Afghanistan","🇦🇫"],["ALB","Albania","🇦🇱"],["AND","Andorra","🇦🇩"],["AGO","Angola","🇦🇴"],
+            ["ATG","Antigua & Barbuda","🇦🇬"],["ARM","Armenia","🇦🇲"],["AZE","Azerbaijan","🇦🇿"],["BHS","Bahamas","🇧🇸"],
+            ["BHR","Bahrain","🇧🇭"],["BGD","Bangladesh","🇧🇩"],["BRB","Barbados","🇧🇧"],["BLR","Belarus","🇧🇾"],
+            ["BLZ","Belize","🇧🇿"],["BEN","Benin","🇧🇯"],["BTN","Bhutan","🇧🇹"],["BOL","Bolivia","🇧🇴"],
+            ["BIH","Bosnia & Herz.","🇧🇦"],["BWA","Botswana","🇧🇼"],["BRN","Brunei","🇧🇳"],["BGR","Bulgaria","🇧🇬"],
+            ["BFA","Burkina Faso","🇧🇫"],["BDI","Burundi","🇧🇮"],["CPV","Cabo Verde","🇨🇻"],["KHM","Cambodia","🇰🇭"],
+            ["CMR","Cameroon","🇨🇲"],["CAF","Central African Rep.","🇨🇫"],["TCD","Chad","🇹🇩"],["COM","Comoros","🇰🇲"],
+            ["COG","Congo","🇨🇬"],["CRI","Costa Rica","🇨🇷"],["CIV","Côte d'Ivoire","🇨🇮"],["HRV","Croatia","🇭🇷"],
+            ["CUB","Cuba","🇨🇺"],["CYP","Cyprus","🇨🇾"],["CZE","Czechia","🇨🇿"],["DNK","Denmark","🇩🇰"],
+            ["DJI","Djibouti","🇩🇯"],["DMA","Dominica","🇩🇲"],["DOM","Dominican Rep.","🇩🇴"],["ECU","Ecuador","🇪🇨"],
+            ["SLV","El Salvador","🇸🇻"],["GNQ","Equatorial Guinea","🇬🇶"],["ERI","Eritrea","🇪🇷"],["EST","Estonia","🇪🇪"],
+            ["SWZ","Eswatini","🇸🇿"],["FJI","Fiji","🇫🇯"],["GAB","Gabon","🇬🇦"],["GMB","Gambia","🇬🇲"],
+            ["GEO","Georgia","🇬🇪"],["GHA","Ghana","🇬🇭"],["GRD","Grenada","🇬🇩"],["GTM","Guatemala","🇬🇹"],
+            ["GIN","Guinea","🇬🇳"],["GNB","Guinea-Bissau","🇬🇼"],["GUY","Guyana","🇬🇾"],["HTI","Haiti","🇭🇹"],
+            ["HND","Honduras","🇭🇳"],["HUN","Hungary","🇭🇺"],["ISL","Iceland","🇮🇸"],["JAM","Jamaica","🇯🇲"],
+            ["JOR","Jordan","🇯🇴"],["KAZ","Kazakhstan","🇰🇿"],["KIR","Kiribati","🇰🇮"],["KWT","Kuwait","🇰🇼"],
+            ["KGZ","Kyrgyzstan","🇰🇬"],["LAO","Laos","🇱🇦"],["LVA","Latvia","🇱🇻"],["LBN","Lebanon","🇱🇧"],
+            ["LSO","Lesotho","🇱🇸"],["LBR","Liberia","🇱🇷"],["LBY","Libya","🇱🇾"],["LIE","Liechtenstein","🇱🇮"],
+            ["LTU","Lithuania","🇱🇹"],["LUX","Luxembourg","🇱🇺"],["MDG","Madagascar","🇲🇬"],["MWI","Malawi","🇲🇼"],
+            ["MYS","Malaysia","🇲🇾"],["MDV","Maldives","🇲🇻"],["MLI","Mali","🇲🇱"],["MLT","Malta","🇲🇹"],
+            ["MHL","Marshall Islands","🇲🇭"],["MRT","Mauritania","🇲🇷"],["MUS","Mauritius","🇲🇺"],["FSM","Micronesia","🇫🇲"],
+            ["MDA","Moldova","🇲🇩"],["MCO","Monaco","🇲🇨"],["MNG","Mongolia","🇲🇳"],["MNE","Montenegro","🇲🇪"],
+            ["MOZ","Mozambique","🇲🇿"],["MMR","Myanmar","🇲🇲"],["NAM","Namibia","🇳🇦"],["NRU","Nauru","🇳🇷"],
+            ["NPL","Nepal","🇳🇵"],["NIC","Nicaragua","🇳🇮"],["NER","Niger","🇳🇪"],["MKD","North Macedonia","🇲🇰"],
+            ["OMN","Oman","🇴🇲"],["PLW","Palau","🇵🇼"],["PAN","Panama","🇵🇦"],["PNG","Papua New Guinea","🇵🇬"],
+            ["PRY","Paraguay","🇵🇾"],["PHL","Philippines","🇵🇭"],["QAT","Qatar","🇶🇦"],["RWA","Rwanda","🇷🇼"],
+            ["KNA","Saint Kitts & Nevis","🇰🇳"],["LCA","Saint Lucia","🇱🇨"],["VCT","St. Vincent","🇻🇨"],["WSM","Samoa","🇼🇸"],
+            ["SMR","San Marino","🇸🇲"],["STP","Sao Tome & Principe","🇸🇹"],["SEN","Senegal","🇸🇳"],["SRB","Serbia","🇷🇸"],
+            ["SYC","Seychelles","🇸🇨"],["SLE","Sierra Leone","🇸🇱"],["SGP","Singapore","🇸🇬"],["SVK","Slovakia","🇸🇰"],
+            ["SVN","Slovenia","🇸🇮"],["SLB","Solomon Islands","🇸🇧"],["SOM","Somalia","🇸🇴"],["SSD","South Sudan","🇸🇸"],
+            ["LKA","Sri Lanka","🇱🇰"],["SDN","Sudan","🇸🇩"],["SUR","Suriname","🇸🇷"],["SYR","Syria","🇸🇾"],
+            ["TJK","Tajikistan","🇹🇯"],["TZA","Tanzania","🇹🇿"],["TLS","Timor-Leste","🇹🇱"],["TGO","Togo","🇹🇬"],
+            ["TON","Tonga","🇹🇴"],["TTO","Trinidad & Tobago","🇹🇹"],["TUN","Tunisia","🇹🇳"],["TKM","Turkmenistan","🇹🇲"],
+            ["TUV","Tuvalu","🇹🇻"],["UGA","Uganda","🇺🇬"],["ARE","UAE","🇦🇪"],["URY","Uruguay","🇺🇾"],
+            ["UZB","Uzbekistan","🇺🇿"],["VUT","Vanuatu","🇻🇺"],["VAT","Vatican City","🇻🇦"],["YEM","Yemen","🇾🇪"],
+            ["ZMB","Zambia","🇿🇲"],["ZWE","Zimbabwe","🇿🇼"]
+        ];
+
+        let NATION_DATA = [];
+        ALL_NATIONS_RAW.forEach(([code, name, flag], index) => {
+            // Scatter across world map grid cleanly with stable pseudo-random offsets
+            const angle = (index / 193) * Math.PI * 2 * 3.5;
+            const dist = 60 + (index * 6.5);
+            const rx = 1000 + Math.cos(angle) * dist;
+            const ry = 1000 + Math.sin(angle) * dist;
+            NATION_DATA.push({
+                id: code,
+                name: name,
+                flag: flag || "🏳️",
+                color: `hsl(${(index * 37) % 360}, 75%, 48%)`,
+                x: rx,
+                y: ry,
+                radius: 22
+            });
+        });
+
+        // --- 2. AUDIO SYSTEM (Web Audio API) ---
+        class SoundSystem {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playPop() {
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+            playMarch() {
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(70, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+            playHit() {
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(110, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(35, this.ctx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+            playVictory() {
+                this.init();
+                const notes = [261.63, 329.63, 392.00, 523.25];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.25, this.ctx.currentTime + idx * 0.12);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.12 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.12);
+                    osc.stop(this.ctx.currentTime + idx * 0.12 + 0.4);
+                });
+            }
+        }
+
+        const audio = new SoundSystem();
+        const VOICE_LINES = ["Let's Go!", "Ouch!", "Hurry!", "Incoming!", "Unstoppable!", "Oof!"];
+
+        // --- 3. GAME STATE ---
+        const canvas = document.getElementById('world-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let camera = { x: 0, y: 0, zoom: 0.8 };
+        let isDragging = false;
+        let startPan = { x: 0, y: 0 };
+
+        let turn = 1;
+        let playerGold = 150;
+        let playerCountryId = null;
+        let selectedTerritoryId = null;
+
+        let territories = [];
+        let marchTroops = [];
+        let animFrameId = null;
+
+        // --- 4. NON-OVERLAPPING PHYSICS SOLVER ---
+        function resolvePhysics(items) {
+            const padding = 6;
+            for (let iter = 0; iter < 120; iter++) {
+                let moved = false;
+                for (let i = 0; i < items.length; i++) {
+                    for (let j = i + 1; j < items.length; j++) {
+                        const a = items[i];
+                        const b = items[j];
+                        const dx = b.x - a.x;
+                        const dy = b.y - a.y;
+                        const dist = Math.hypot(dx, dy);
+                        const minDist = a.radius + b.radius + padding;
+
+                        if (dist < minDist) {
+                            const overlap = (minDist - dist) / 2;
+                            const nx = dist === 0 ? 1 : dx / dist;
+                            const ny = dist === 0 ? 0 : dy / dist;
+
+                            a.x -= nx * overlap;
+                            a.y -= ny * overlap;
+                            b.x += nx * overlap;
+                            b.y += ny * overlap;
+                            moved = true;
+                        }
+                    }
+                }
+                if (!moved) break;
+            }
+        }
+
+        // --- 5. INITIALIZE GAME ---
+        function initGame(chosenId) {
+            playerCountryId = chosenId;
+            turn = 1;
+            playerGold = 150;
+            marchTroops = [];
+            selectedTerritoryId = null;
+
+            territories = NATION_DATA.map(data => ({
+                ...data,
+                owner: data.id,
+                troops: Math.floor(Math.random() * 10) + 12,
+                powerLevel: 10,
+                incomeLevel: 10,
+                powerCost: 100,
+                incomeCost: 150
+            }));
+
+            resolvePhysics(territories);
+
+            // Give player initial troop boost
+            const playerTerr = territories.find(t => t.id === playerCountryId);
+            if (playerTerr) {
+                playerTerr.troops = 30;
+            }
+
+            document.getElementById('selection-modal').classList.add('hidden');
+            recenterCameraOn(playerTerr ? playerTerr : territories[0]);
+
+            updateHUD();
+            startLoop();
+        }
+
+        // --- 6. RENDER LOOP ---
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function recenterCameraOn(target) {
+            camera.zoom = 1.0;
+            camera.x = canvas.width / 2 - target.x * camera.zoom;
+            camera.y = canvas.height / 2 - target.y * camera.zoom;
+        }
+
+        function drawWorld() {
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Ocean background
+            ctx.fillStyle = "#0f172a";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.translate(camera.x, camera.y);
+            ctx.scale(camera.zoom, camera.zoom);
+
+            // Draw Adjacency Network Lines
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            for (let i = 0; i < territories.length; i++) {
+                for (let j = i + 1; j < territories.length; j++) {
+                    const t1 = territories[i];
+                    const t2 = territories[j];
+                    const dist = Math.hypot(t1.x - t2.x, t1.y - t2.y);
+                    if (dist < 130) {
+                        ctx.beginPath();
+                        ctx.moveTo(t1.x, t1.y);
+                        ctx.lineTo(t2.x, t2.y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            ctx.setLineDash([]);
+
+            // Draw Territory Area Glows
+            territories.forEach(t => {
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.radius + 8, 0, Math.PI * 2);
+                ctx.fillStyle = t.owner === playerCountryId ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.03)";
+                ctx.fill();
+
+                if (t.id === selectedTerritoryId) {
+                    ctx.strokeStyle = "#f59e0b";
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                } else if (t.owner === playerCountryId) {
+                    ctx.strokeStyle = "rgba(16, 185, 129, 0.7)";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            });
+
+            // Draw Marching Rolling Troops
+            marchTroops.forEach((m, idx) => {
+                m.progress += m.speed;
+                const currX = m.startX + (m.targetX - m.startX) * m.progress;
+                const currY = m.startY + (m.targetY - m.startY) * m.progress;
+
+                ctx.save();
+                ctx.translate(currX, currY);
+                ctx.rotate(m.progress * Math.PI * 6);
+
+                ctx.beginPath();
+                ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                ctx.fillStyle = m.color;
+                ctx.fill();
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.font = "11px sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(m.flag, 0, 0);
+                ctx.restore();
+
+                if (m.progress >= 1) {
+                    resolveCombat(m);
+                    marchTroops.splice(idx, 1);
+                }
+            });
+
+            // Draw Countryballs
+            territories.forEach(t => {
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.radius, 0, Math.PI * 2);
+                ctx.fillStyle = t.color;
+                ctx.fill();
+
+                ctx.strokeStyle = "#000000";
+                ctx.lineWidth = 3.5;
+                ctx.stroke();
+
+                ctx.font = `${t.radius * 1.15}px sans-serif`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(t.flag, t.x, t.y);
+
+                // Cute Eyes
+                const eyeOff = t.radius * 0.32;
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.ellipse(t.x - eyeOff, t.y - eyeOff, 3.5, 5, 0, 0, Math.PI * 2);
+                ctx.ellipse(t.x + eyeOff, t.y - eyeOff, 3.5, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                ctx.fillStyle = "#000";
+                ctx.beginPath();
+                ctx.arc(t.x - eyeOff + 0.8, t.y - eyeOff, 1.6, 0, Math.PI * 2);
+                ctx.arc(t.x + eyeOff + 0.8, t.y - eyeOff, 1.6, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Troop Badge
+                ctx.save();
+                ctx.translate(t.x, t.y - t.radius - 8);
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.roundRect(-15, -9, 30, 18, 9);
+                ctx.fill();
+                ctx.strokeStyle = "#000000";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = "#000000";
+                ctx.font = "bold 11px Fredoka, sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText(t.troops, 0, 0);
+                ctx.restore();
+            });
+
+            ctx.restore();
+            animFrameId = requestAnimationFrame(drawWorld);
+        }
+
+        function startLoop() {
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+            drawWorld();
+        }
+
+        // --- 7. COMBAT & MARCHING ---
+        function launchMarch(source, target, count) {
+            if (source.troops <= 1) return;
+            const actual = Math.min(count, source.troops - 1);
+            source.troops -= actual;
+
+            audio.playMarch();
+            triggerSpeech(source.x, source.y, VOICE_LINES[Math.floor(Math.random() * VOICE_LINES.length)]);
+
+            for (let i = 0; i < actual; i++) {
+                setTimeout(() => {
+                    marchTroops.push({
+                        startX: source.x,
+                        startY: source.y,
+                        targetX: target.x,
+                        targetY: target.y,
+                        targetId: target.id,
+                        sourceOwner: source.owner,
+                        flag: source.flag,
+                        color: source.color,
+                        progress: 0,
+                        speed: 0.02 + Math.random() * 0.006
+                    });
+                }, i * 60);
+            }
+        }
+
+        function resolveCombat(m) {
+            const target = territories.find(t => t.id === m.targetId);
+            if (!target) return;
+
+            if (target.owner === m.sourceOwner) {
+                target.troops += 1;
+                audio.playPop();
+            } else {
+                audio.playHit();
+                target.troops -= 1;
+
+                if (target.troops <= 0) {
+                    target.owner = m.sourceOwner;
+                    target.troops = 1;
+                    const conqueror = territories.find(t => t.id === m.sourceOwner) || { color: m.color, flag: m.flag };
+                    target.color = conqueror.color;
+
+                    triggerSpeech(target.x, target.y, "Captured!");
+                    audio.playVictory();
+                    checkEndGame();
+                }
+            }
+            updateHUD();
+        }
+
+        // --- 8. TURN SYSTEM & AI ENGINE (1-2 Global Attacks Max) ---
+        document.getElementById('end-turn-btn').addEventListener('click', advanceTurn);
+
+        function advanceTurn() {
+            turn++;
+
+            // Player Income
+            const playerTerrs = territories.filter(t => t.owner === playerCountryId);
+            const income = playerTerrs.reduce((sum, t) => sum + t.incomeLevel, 0);
+            playerGold += income;
+
+            // Troop Generation
+            territories.forEach(t => {
+                t.troops += Math.floor(t.powerLevel / 5);
+            });
+
+            // AI Aggression (Turns 3+ : exactly 1-2 random global attacks max per turn)
+            if (turn >= 3) {
+                executeAITurns();
+            }
+
+            // Diplomatic Deal Event (25% chance)
+            if (turn >= 3 && Math.random() < 0.25) {
+                triggerEventModal();
+            }
+
+            updateHUD();
+        }
+
+        function executeAITurns() {
+            // Collect all potential AI attacking sources with enough troops
+            const eligibleAI = territories.filter(t => t.owner !== playerCountryId && t.troops >= 10);
+            if (eligibleAI.length === 0) return;
+
+            // Pick 1 to 2 random global AI attacks maximum
+            const numAttacks = Math.random() < 0.5 ? 1 : 2;
+
+            for (let i = 0; i < numAttacks; i++) {
+                if (eligibleAI.length === 0) break;
+                const srcIdx = Math.floor(Math.random() * eligibleAI.length);
+                const source = eligibleAI.splice(srcIdx, 1)[0];
+
+                // Find adjacent targets
+                const neighbors = territories.filter(t => {
+                    if (t.id === source.id) return false;
+                    const dist = Math.hypot(t.x - source.x, t.y - source.y);
+                    return dist < 130 && t.owner !== source.owner;
+                });
+
+                if (neighbors.length > 0) {
+                    // Prefer attacking player if adjacent, otherwise weakest neighbor
+                    const playerNeighbor = neighbors.find(n => n.owner === playerCountryId);
+                    const target = playerNeighbor || neighbors.sort((a, b) => a.troops - b.troops)[0];
+
+                    if (source.troops > target.troops + 2) {
+                        launchMarch(source, target, Math.floor(source.troops * 0.5));
+                    }
+                }
+            }
+        }
+
+        // --- 9. DIPLOMATIC DEALS & EVENTS ---
+        function triggerEventModal() {
+            const modal = document.getElementById('event-modal');
+            const title = document.getElementById('event-title');
+            const desc = document.getElementById('event-desc');
+            const accept = document.getElementById('event-accept');
+            const decline = document.getElementById('event-decline');
+
+            const events = [
+                { title: "Land Trade Offer!", desc: "A neighboring nation offers 250 🪙 for mutual non-aggression.", reward: 250 },
+                { title: "Mystery Chest Found!", desc: "Troop reserves discovered in abandoned bunkers! Gain +150 🪙.", reward: 150 },
+                { title: "Economic Sabotage!", desc: "Market downturn! Pay 80 🪙 to stabilize.", reward: -80 }
+            ];
+
+            const ev = events[Math.floor(Math.random() * events.length)];
+            title.innerText = ev.title;
+            desc.innerText = ev.desc;
+            modal.classList.remove('hidden');
+
+            accept.onclick = () => {
+                playerGold = Math.max(0, playerGold + ev.reward);
+                modal.classList.add('hidden');
+                updateHUD();
+            };
+            decline.onclick = () => modal.classList.add('hidden');
+        }
+
+        function triggerSpeech(worldX, worldY, text) {
+            const container = document.getElementById('speech-bubbles-container');
+            const sx = worldX * camera.zoom + camera.x;
+            const sy = worldY * camera.zoom + camera.y;
+
+            const b = document.createElement('div');
+            b.className = 'speech-bubble';
+            b.style.left = `${sx}px`;
+            b.style.top = `${sy - 15}px`;
+            b.innerText = text;
+
+            container.appendChild(b);
+            setTimeout(() => b.remove(), 1500);
+        }
+
+        // --- 10. USER INPUT & CONTROLS ---
+        canvas.addEventListener('mousedown', e => {
+            isDragging = true;
+            startPan = { x: e.clientX - camera.x, y: e.clientY - camera.y };
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            if (isDragging) {
+                camera.x = e.clientX - startPan.x;
+                camera.y = e.clientY - startPan.y;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => isDragging = false);
+
+        canvas.addEventListener('click', e => {
+            const rect = canvas.getBoundingClientRect();
+            const cx = (e.clientX - rect.left - camera.x) / camera.zoom;
+            const cy = (e.clientY - rect.top - camera.y) / camera.zoom;
+
+            const clicked = territories.find(t => Math.hypot(t.x - cx, t.y - cy) <= t.radius + 8);
+
+            if (clicked) {
+                if (selectedTerritoryId && selectedTerritoryId !== clicked.id) {
+                    const source = territories.find(t => t.id === selectedTerritoryId);
+                    if (source && source.owner === playerCountryId) {
+                        launchMarch(source, clicked, source.troops - 1);
+                        selectedTerritoryId = null;
+                        hideUpgradePanel();
+                        return;
+                    }
+                }
+
+                if (clicked.owner === playerCountryId) {
+                    selectedTerritoryId = clicked.id;
+                    showUpgradePanel(clicked);
+                } else {
+                    selectedTerritoryId = null;
+                    hideUpgradePanel();
+                }
+            } else {
+                selectedTerritoryId = null;
+                hideUpgradePanel();
+            }
+        });
+
+        document.getElementById('zoom-in').addEventListener('click', () => camera.zoom = Math.min(camera.zoom * 1.25, 2.5));
+        document.getElementById('zoom-out').addEventListener('click', () => camera.zoom = Math.max(camera.zoom / 1.25, 0.4));
+        document.getElementById('recenter-map').addEventListener('click', () => {
+            const p = territories.find(t => t.owner === playerCountryId);
+            if (p) recenterCameraOn(p);
+        });
+
+        // --- 11. UPGRADE PANEL ---
+        function showUpgradePanel(t) {
+            const p = document.getElementById('upgrade-panel');
+            document.getElementById('panel-flag').innerText = t.flag;
+            document.getElementById('panel-country-name').innerText = t.name;
+            document.getElementById('panel-troops').innerText = `Troops: ${t.troops}`;
+            document.getElementById('power-cost').innerText = `${t.powerCost} 🪙`;
+            document.getElementById('income-cost').innerText = `${t.incomeCost} 🪙`;
+            p.classList.remove('hidden');
+        }
+
+        function hideUpgradePanel() {
+            document.getElementById('upgrade-panel').classList.add('hidden');
+        }
+
+        document.getElementById('close-panel').addEventListener('click', hideUpgradePanel);
+
+        document.getElementById('upgrade-power-btn').addEventListener('click', () => {
+            if (!selectedTerritoryId) return;
+            const t = territories.find(i => i.id === selectedTerritoryId);
+            if (t && playerGold >= t.powerCost) {
+                playerGold -= t.powerCost;
+                t.powerLevel += 5;
+                t.troops += 5;
+                t.powerCost = Math.floor(t.powerCost * 1.35);
+                audio.playPop();
+                showUpgradePanel(t);
+                updateHUD();
+            }
+        });
+
+        document.getElementById('upgrade-income-btn').addEventListener('click', () => {
+            if (!selectedTerritoryId) return;
+            const t = territories.find(i => i.id === selectedTerritoryId);
+            if (t && playerGold >= t.incomeCost) {
+                playerGold -= t.incomeCost;
+                t.incomeLevel += 10;
+                t.incomeCost = Math.floor(t.incomeCost * 1.35);
+                audio.playPop();
+                showUpgradePanel(t);
+                updateHUD();
+            }
+        });
+
+        // --- 12. HUD & WIN/LOSS ---
+        function updateHUD() {
+            document.getElementById('turn-counter').innerText = turn;
+            document.getElementById('gold-display').innerText = playerGold;
+
+            const owned = territories.filter(t => t.owner === playerCountryId).length;
+            document.getElementById('territory-display').innerText = `${owned} / ${territories.length}`;
+
+            const badge = document.getElementById('phase-badge');
+            if (turn < 3) {
+                badge.className = "bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider";
+                badge.innerText = `Peace (Turns 1-2)`;
+            } else {
+                badge.className = "bg-rose-500/20 text-rose-300 border border-rose-500/50 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider animate-pulse";
+                badge.innerText = `War Zone (AI Active)`;
+            }
+        }
+
+        function checkEndGame() {
+            const playerTerrs = territories.filter(t => t.owner === playerCountryId);
+            const modal = document.getElementById('endgame-modal');
+
+            if (playerTerrs.length === territories.length) {
+                document.getElementById('endgame-title').innerText = "WORLD DOMINATION!";
+                document.getElementById('endgame-desc').innerText = "You successfully conquered all 193 UN nations!";
+                document.getElementById('endgame-turns').innerText = turn;
+                document.getElementById('endgame-gold').innerText = `+${playerGold}`;
+                modal.classList.remove('hidden');
+                confetti({ particleCount: 180, spread: 90, origin: { y: 0.6 } });
+            } else if (playerTerrs.length === 0) {
+                document.getElementById('endgame-title').innerText = "DEFEATED!";
+                document.getElementById('endgame-desc').innerText = "Your countryball nation was completely annexed.";
+                document.getElementById('endgame-turns').innerText = turn;
+                document.getElementById('endgame-gold').innerText = "0";
+                modal.classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            document.getElementById('endgame-modal').classList.add('hidden');
+            document.getElementById('selection-modal').classList.remove('hidden');
+        });
+
+        // --- 13. NATION PICKER GRID ---
+        function populateGrid(filter = '') {
+            const grid = document.getElementById('country-grid');
+            grid.innerHTML = '';
+
+            const filtered = NATION_DATA.filter(n => n.name.toLowerCase().includes(filter.toLowerCase()));
+
+            filtered.forEach(n => {
+                const btn = document.createElement('button');
+                btn.className = "action-btn glass-panel hover:border-amber-400 p-3 rounded-2xl flex items-center gap-3 text-left border border-slate-800";
+                btn.innerHTML = `
+                    <span class="text-2xl">${n.flag}</span>
+                    <div class="overflow-hidden">
+                        <div class="font-bold text-sm text-white truncate">${n.name}</div>
+                        <div class="text-[10px] text-amber-400 font-semibold">Select Country</div>
+                    </div>
+                `;
+                btn.onclick = () => initGame(n.id);
+                grid.appendChild(btn);
+            });
+        }
+
+        document.getElementById('country-search').addEventListener('input', e => populateGrid(e.target.value));
+        populateGrid();
+    </script>
+</body>
+</html>
